@@ -1,0 +1,4 @@
+CherryProxy==0.13
+Twisted==15.4.0
+wheel==0.24.0
+zope.interface==4.1.3
