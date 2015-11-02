@@ -166,9 +166,12 @@ class FilteringProxy(cherryproxy.CherryProxy):
 					self.set_response_forbidden(reason="Too low in reverse :)")
 					return
 		else:
-			print "------- DATA -------"
-			data = self.req.data
+			print "------- BEGIN DATA -------"
+			#data = self.req.data
+			length = int(self.req.length)
+			data = urlparse.parse_qs(self.req.data)
 			print data
+			print "------- END DATA -------" 
 			for f in self.__filter_request:
 				if f(data):
 					print "The keyword 'SSH' has been read"
