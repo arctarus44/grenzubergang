@@ -119,12 +119,16 @@ class FilteringProxy(cherryproxy.CherryProxy):
 	def filter_request(self):
 		if 'GET' in self.req.method:
 			url = self.req.url
-			url = url.replace("/", "")
-			url = url.split("/")
-			if decode_baseX(url):
-				print "T'as voulu faire quoi la ?"
-				self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
-				return
+			url = list(url)
+			url[0] = ''
+			url = "".join(url)
+			url = url.split('/')
+			for path in url:
+				print path
+				if filter_request_ssh(path):
+					print "T'as voulu faire quoi la ?"
+					self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
+					return
 		else:
 			print "------- DATA -------"
 			data = self.req.data
