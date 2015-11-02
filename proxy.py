@@ -19,7 +19,7 @@ def decode_baseX(string):
 		return base64.b16decode(string)
 	except TypeError:
 		pass
-	raise TypeError("This is not base64/32/16 encoded string")
+	#raise TypeError("This is not base64/32/16 encoded string")
 
 
 
@@ -45,11 +45,24 @@ def filter_header_user_agent(headers):
 def filter_header_random(headers):
 	"""For testing purpoise"""
 	import random
-	if random.randint(0, 100) < 50:
+	if random.randint(0, 100) < 20:
 		print "we block"
 		return True
 	else:
 		print "we do not block"
+		return False
+
+# Request
+def filter_request_ssh(data):
+	try:
+		if 'SSH' in decode_baseX(data):
+			print "SSH READ"
+			return True
+		else:
+			"PASS: not SSH"
+			return False
+	except TypeError:
+		print "WRONG TYPE TO CHECK SSH"
 		return False
 
 
@@ -57,10 +70,9 @@ def filter_header_random(headers):
 
 class FilteringProxy(cherryproxy.CherryProxy):
 
-	__filter_header = [filter_header_random]
+	__filter_header = [] #filter_header_random
 	__filter_response = []
-	__filter_request = []
-
+	__filter_request = [filter_request_ssh]
 
 	def filter_request_headers(self):
 		headers = self.req.headers
@@ -70,7 +82,27 @@ class FilteringProxy(cherryproxy.CherryProxy):
 				break
 
 
+	def filter_request(self):
+		if 'GET' in self.req.method:
+			url = self.req.url
+			url = url.replace("/", "")
+			url = url.split("/")
+			if decode_baseX(url):
+				print "T'as voulu faire quoi la ?"
+				self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
+				return
+		else:
+			print "------- DATA -------"
+			data = self.req.data
+			print data
+			for f in self.__filter_request:
+				if f(data):
+					print "The keyword 'SSH' has been read"
+					self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
+					break
 
+
+"""
 if __name__ == "__main__":
 
 	proxy = FilteringProxy(address='localhost', port=8000,
@@ -82,3 +114,6 @@ if __name__ == "__main__":
 		proxy.start()
 	except KeyboardInterrupt:
 		proxy.stop()
+"""
+
+cherryproxy.main(FilteringProxy)
