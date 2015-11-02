@@ -18,6 +18,10 @@ def decode_baseX(string):
 	except TypeError:
 		pass
 	try:
+		return base64.urlsafe_b64decode(string)
+	except TypeError:
+		pass
+	try:
 		return base64.b32decode(string)
 	except TypeError:
 		pass
@@ -146,12 +150,21 @@ class FilteringProxy(cherryproxy.CherryProxy):
 	def filter_request(self):
 		if 'GET' in self.req.method:
 			url = self.req.url
-			url = url.replace("/", "")
-			url = url.split("/")
-			if decode_baseX(url):
-				print "T'as voulu faire quoi la ?"
-				self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
-				return
+			url = list(url)
+			url[0] = ''
+			url = "".join(url)
+			url = url.split('/')
+			for path in url:
+				print path
+				if filter_request_ssh(path):
+					print "T'as voulu faire quoi la ?"
+					self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
+					return
+				reverse_path = path[::-1]
+				if filter_request_ssh(reverse_path):
+					print "Meme en inverse je te baise :)"
+					self.set_response_forbidden(reason="Too low in reverse :)")
+					return
 		else:
 			print "------- DATA -------"
 			data = self.req.data
