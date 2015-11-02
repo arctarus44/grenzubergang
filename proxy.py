@@ -2,7 +2,13 @@
 
 import cherryproxy
 import base64
-from BeautifulSoup import BeautifulSoup as bs
+from BeautifulSoup import BeautifulSoup
+import threading as thread
+
+INLINE = ["span", "b", "big", "i", "small", "tt", "abbr", "acronym", "cite",
+          "code", "dfn", "em", "kbd", "strong", "samp", "var", "a",
+          "img", "map", "object", "q", "script", "sub", "sup", "label"]
+
 
 #################################### Utils #####################################
 def decode_baseX(string):
@@ -19,7 +25,26 @@ def decode_baseX(string):
 		return base64.b16decode(string)
 	except TypeError:
 		pass
-	#raise TypeError("This is not base64/32/16 encoded string")
+	# raise TypeError("This is not base64/32/16 encoded string")
+
+def extract_payload(html):
+	"""Extract a payload from an html page."""
+
+	def inline_gen(html):
+		parser = BeautifulSoup(html, 'html.parser')
+		for element in INLINE:
+			elements = parser.findAll(element)
+			inline = ""
+			for tag in elements:
+				inline += elt.next
+			yield inline
+
+
+	for payload in inline_gen(html):
+		if decode_baseX(paylaod) != None:
+			return payload
+	return None
+
 
 
 def extract_baseX(string, base=64):
@@ -60,13 +85,13 @@ def extract_baseX(string, base=64):
 #################################### Filter ####################################
 
 # Header
-def filter_header_user_agent(headers):
+def filter_header_user_agent(proxy):
 	# ask : can we ust use a withlist rather than a black list ?
 	"""Return true if the request or response need to be filtered"""
 	agents = ["BinGet", "curl", "Java", "libwww-perl", "Microsoft URL Control",
 	          "Peach", "PHP", "pxyscand", "PycURL", "Python-urllib", "Wget"]
 	try:
-		user_agent = headers["user-agent"]
+		user_agent = proxy.req.headers["user-agent"]
 		print user_agent
 	except KeyError:
 		return True
@@ -110,8 +135,10 @@ class FilteringProxy(cherryproxy.CherryProxy):
 
 	def filter_request_headers(self):
 		headers = self.req.headers
+		print("|" + self.__mro__ )
+		# print(self.resp.httpconn)print(dir(self.resp.httpconn))
 		for f in self.__filter_header:
-			if f(headers):
+			if f(self):
 				self.set_response_forbidden(reason="I don't want to.")
 				break
 
@@ -136,18 +163,15 @@ class FilteringProxy(cherryproxy.CherryProxy):
 					break
 
 
-"""
 if __name__ == "__main__":
 
-	proxy = FilteringProxy(address='localhost', port=8000,
-	                       server_name='grenzubergang-Proxy',
-	                       debug=True, log_level=0, options=None,
-	                       parent_proxy=None)
+	cherryproxy.main(FilteringProxy)
+	# proxy = FilteringProxy(address='localhost', port=8000,
+	#                        server_name='grenzubergang-Proxy',
+	#                        debug=True, log_level=0, options=None,
+	#                        parent_proxy=None)
 
-	try:
-		proxy.start()
-	except KeyboardInterrupt:
-		proxy.stop()
-"""
-
-cherryproxy.main(FilteringProxy)
+	# try:
+	# 	proxy.start()
+	# except KeyboardInterrupt:
+	# 	proxy.stop()
