@@ -173,7 +173,7 @@ def filter_request_ssh(proxy):
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
 				return True
-			return True
+			return False
 
 		keys = data.keys()
 
