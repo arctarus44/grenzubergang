@@ -37,7 +37,7 @@ def decode_baseX(string):
 		return base64.b16decode(string)
 	except TypeError:
 		pass
-	# raise TypeError("This is not base64/32/16 encoded string")
+	# raise TypeError("{} is not base64/32/16 encoded string".format(string))
 
 
 def decode_string(string):
@@ -47,23 +47,23 @@ def decode_string(string):
 	return False
 
 
-def extract_payload(html):
-	"""Extract a payload from an html page."""
+# def extract_payload(html):
+# 	"""Extract a payload from an html page."""
 
-	def inline_gen(html):
-		"""Extract from every inline element the content."""
-		parser = BeautifulSoup(html, 'html.parser')
-		for element in INLINE:
-			elements = parser.findAll(element)
-			inline = ""
-			for tag in elements:
-				inline += tag.next
-			yield inline
+# 	def inline_gen(html):
+# 		"""Extract from every inline element the content."""
+# 		parser = BeautifulSoup(html, 'html.parser')
+# 		for element in INLINE:
+# 			elements = parser.findAll(element)
+# 			inline = ""
+# 			for tag in elements:
+# 				inline += tag.next
+# 			yield inline
 
-	for payload in inline_gen(html):
-		if decode_baseX(payload) != None:
-			return payload
-	return None
+# 	for payload in inline_gen(html):
+# 		if decode_baseX(payload) != None:
+# 			return payload
+# 	return None
 
 
 
@@ -132,18 +132,13 @@ def filter_header_random(headers):
 # Request
 def filter_request_ssh(proxy):
 	logging.debug("Searching a string ssh...")
+
 	def has_ssh(data):
 		""" Search the string "SSH" in the data, then return True or False."""
-		try:
-			if 'SSH' in decode_baseX(data):
-				return True
-			else:
-				return False
-		except TypeError:
-			logging.debug("%s is not a baseX string.")
-			return False
-		except Exception as e:
-			logging.error(e)
+		decoded = decode_baseX(data)
+		if decoded != None and 'SSH' in decoded:
+			return True
+		else:
 			return False
 
 	def has_ssh_list(data, reverse=False):
@@ -157,6 +152,7 @@ def filter_request_ssh(proxy):
 		return has_ssh(payload)
 
 	if "GET" in proxy.req.method:
+		logging.debug("GET request received.")
 		payload = proxy.req.url[1:]
 		logging.debug("Payload = %s", payload)
 		if has_ssh(payload):
@@ -164,32 +160,47 @@ def filter_request_ssh(proxy):
 			return True
 		return False
 
+
 	elif "POST" in proxy.req.method:
-		logging.debug("Data received : %s.", proxy.req.data)
+		logging.debug("POST data received : %s.", proxy.req.data)
 		try:
 			data = literal_eval(proxy.req.data)
+			print data
 		except SyntaxError: # If it's not a JSON
 			if has_ssh(proxy.req.data): # it's a string
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
 				return True
 			return False
-
-		keys = data.keys()
-
-		if len(keys) == 1:
-			return has_ssh(data[keys[0]])
-		else: # More than 1 key. We must sort the key
-			if has_ssh_list(data):
+		except ValueError as e:
+			logging.exception(e)
+			if has_ssh(proxy.req.data): # it's a string
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
 				return True
-			else: # Let's try the reverse sort
-				if has_ssh_list(data, reverse=True):
-					logging.debug("Blocking the request %s with the following reverse payload %s.",
-				              proxy.req.full_url, proxy.req.data)
+			return False
+
+		except Exception as e:
+			logging.exception(e)
+			return False
+
+		else: # it's a JSON and we have a mapping object
+			logging.debug("It's a JSON")
+			keys = data.keys()
+
+			if len(keys) == 1:
+				return has_ssh(data[keys[0]])
+			else: # More than 1 key. We must sort the key
+				if has_ssh_list(data):
+					logging.debug("Blocking the request %s with the following payload %s.",
+								  proxy.req.full_url, proxy.req.data)
 					return True
-				return False
+				else: # Let's try the reverse sort
+					if has_ssh_list(data, reverse=True):
+						logging.debug("Blocking the request %s with the following reverse payload %s.",
+								  proxy.req.full_url, proxy.req.data)
+						return True
+					return False
 
 
 ################################## The Proxy ###################################
@@ -200,18 +211,18 @@ class FilteringProxy(cherryproxy.CherryProxy):
 	__filter_response = []
 	__filter_request = [filter_request_ssh]
 
-	def filter_request_headers(self):
-		logging.debug("Filtering the headers.")
-		for f in self.__filter_header:
-			if f(self):
-				self.set_response_forbidden(reason="I don't want to.")
-				break
+	# def filter_request_headers(self):
+	# 	logging.debug("Filtering the headers.")
+	# 	for f in self.__filter_header:
+	# 		if f(self):
+	# 			self.set_response_forbidden(reason="I don't want to.")
+	# 			break
 
 	def filter_request(self):
 		logging.debug("Filtering the request.")
 		for f in self.__filter_request:
 			if f(self):
-				self.set_response_forbidden(reason="I don't want to.")
+				self.set_response_forbidden(status=403, reason="I don't want to.")
 				break
 
 
