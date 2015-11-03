@@ -92,8 +92,6 @@ def extract_baseX(string, base=64):
 	return string
 
 
-
-
 #################################### Filter ####################################
 
 # Header
@@ -124,73 +122,79 @@ def filter_header_random(headers):
 		return False
 
 # Request
-def filter_request_ssh(data):
-	try:
-		if 'SSH' in decode_baseX(data):
-			print "SSH READ"
-			return True
-		else:
-			"PASS: not SSH"
+def filter_request_ssh(proxy):
+
+	def has_ssh(data):
+		""" Search the string "SSH" in the data, then return True or False."""
+		try:
+			if 'SSH' in decode_baseX(data):
+				print "SSH READ"
+				return True
+			else:
+				"PASS: not SSH"
+				return False
+		except TypeError:
 			return False
-	except TypeError:
-		if decode_string(data):		
-			return True	
-		print "WRONG TYPE TO CHECK SSH"
-		return False
+
+	def has_ssh_list(data, reverse=False):
+		""" Sort the key and check if the ssh string is present. If reverse
+		equal True, the keys are sort in decroissant order."""
+		keys.sort(reverse=reverse)
+		payload = ""
+		for k in keys:
+			paylaod += self.req.data[k]
+
+		payload = decode_baseX(payload)
+		return has_ssh(payload)
+
+
+	if "GET" in proxy.req.method:
+		payload = self.req.url[1:]
+		payload = decode_baseX(payload)
+		return has_ssh(payload)
+
+	elif "POST" in proxy.req.method:
+		keys = self.req.data.keys()
+		if len(keys) == 1:
+			payload = decode_baseX(payload)
+			return has_ssh(payload)
+		else: # More than 1 key. We must sort the key
+			if has_ssh_list(self.req.data) == True:
+				return True
+			else: # Let's try the reverse sort
+				return has_ssh_list(self.req.data, reverse=True)
 
 
 ################################## The Proxy ###################################
 
 class FilteringProxy(cherryproxy.CherryProxy):
 
-	__filter_header = [] #filter_header_random
+	__filter_header = []
 	__filter_response = []
 	__filter_request = [filter_request_ssh]
 
 	def filter_request_headers(self):
+		logging.debug("Filtering the headers.")
 		headers = self.req.headers
-		# print("|" + self.__mro__ )
-		# print(self.resp.httpconn)print(dir(self.resp.httpconn))
+		for f in self.__filter_header:
+			if f(self):
+				self.set_response_forbidden(reason="I don't want to.")
+				break
+
+	def filter_request(self):
+		logging.debug("Filtering the request.")
 		for f in self.__filter_header:
 			if f(self):
 				self.set_response_forbidden(reason="I don't want to.")
 				break
 
 
-	def filter_request(self):
-		if 'GET' in self.req.method:
-			url = self.req.url
-			url = list(url)
-			url[0] = ''
-			url = "".join(url)
-			url = url.split('/')
-			for path in url:
-				print path
-				if filter_request_ssh(path):
-					print "T'as voulu faire quoi la ?"
-					self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
-					return
-				reverse_path = path[::-1]
-				if filter_request_ssh(reverse_path):
-					print "Meme en inverse je te baise :)"
-					self.set_response_forbidden(reason="Too low in reverse :)")
-					return
-		else:
-			print "------- BEGIN DATA -------"
-			#data = self.req.data
-			length = int(self.req.length)
-			#data = urlparse.parse_qs(self.rfile.read(length).decode('utf-8'))
-			data = urlparse.parse_qs(self.req.data)
-			print data
-			print "------- END DATA -------" 
-			for f in self.__filter_request:
-				if f(data):
-					print "The keyword 'SSH' has been read"
-					self.set_response_forbidden(reason="Are you serious ? SSH in HTTP ? :)")
-					break
-
 
 if __name__ == "__main__":
+
+	logging.basicConfig(format='%(levelname)8s:%(asctime)s:%(funcName)20s():%(message)s',
+	                    filename='proxy.log', level=logging.DEBUG)
+
 
 	cherryproxy.main(FilteringProxy)
 	# proxy = FilteringProxy(address='localhost', port=8000,
