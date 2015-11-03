@@ -1,5 +1,11 @@
 #!/usr/bin/env python2
 
+"""This module implement a proxy that seek to detect and block http tunnel
+used to transport SSH protocole.
+
+Disclaimer : this is a student work. If you want use something that might
+not work, use this module."""
+
 import cherryproxy
 import base64
 from BeautifulSoup import BeautifulSoup
@@ -45,17 +51,17 @@ def extract_payload(html):
 	"""Extract a payload from an html page."""
 
 	def inline_gen(html):
+		"""Extract from every inline element the content."""
 		parser = BeautifulSoup(html, 'html.parser')
 		for element in INLINE:
 			elements = parser.findAll(element)
 			inline = ""
 			for tag in elements:
-				inline += elt.next
+				inline += tag.next
 			yield inline
 
-
 	for payload in inline_gen(html):
-		if decode_baseX(paylaod) != None:
+		if decode_baseX(payload) != None:
 			return payload
 	return None
 
@@ -104,7 +110,6 @@ def filter_header_user_agent(proxy):
 	          "Peach", "PHP", "pxyscand", "PycURL", "Python-urllib", "Wget"]
 	try:
 		user_agent = proxy.req.headers["user-agent"]
-		print user_agent
 	except KeyError:
 		return True
 	else:
@@ -147,7 +152,7 @@ def filter_request_ssh(proxy):
 		keys.sort(reverse=reverse)
 		payload = ""
 		for k in keys:
-			paylaod += proxy.req.data[k]
+			payload += data[k]
 
 		return has_ssh(payload)
 
@@ -197,7 +202,6 @@ class FilteringProxy(cherryproxy.CherryProxy):
 
 	def filter_request_headers(self):
 		logging.debug("Filtering the headers.")
-		headers = self.req.headers
 		for f in self.__filter_header:
 			if f(self):
 				self.set_response_forbidden(reason="I don't want to.")
