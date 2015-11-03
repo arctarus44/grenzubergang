@@ -162,14 +162,14 @@ def filter_request_ssh(proxy):
 		logging.debug("Data received : %s.", proxy.req.data)
 		try:
 			data = literal_eval(proxy.req.data)
-		except SyntaxError:
-			if has_ssh(proxy.req.data):
+		except SyntaxError: # If it's not a JSON
+			if has_ssh(proxy.req.data): # it's a string
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
 				return True
 			return True
-		else:
-			keys = data.keys()
+
+		keys = data.keys()
 
 		if len(keys) == 1:
 			return has_ssh(data[keys[0]])
