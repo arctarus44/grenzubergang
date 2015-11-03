@@ -116,11 +116,12 @@ def filter_header_user_agent(proxy):
 def filter_header_random(headers):
 	"""For testing purpoise"""
 	import random
+	logging.error("We should not use it")
 	if random.randint(0, 100) < 20:
-		print "we block"
+		logging.debug("I don't like you !")
 		return True
 	else:
-		print "we do not block"
+		logging.debug("I like you <3")
 		return False
 
 # Request
@@ -190,7 +191,7 @@ def filter_request_ssh(proxy):
 
 class FilteringProxy(cherryproxy.CherryProxy):
 
-	__filter_header = []
+	__filter_header = [filter_header_user_agent]
 	__filter_response = []
 	__filter_request = [filter_request_ssh]
 
@@ -216,14 +217,4 @@ if __name__ == "__main__":
 	logging.basicConfig(format='%(levelname)8s:%(asctime)s:%(funcName)20s():%(message)s',
 	                    filename='proxy.log', level=logging.DEBUG)
 
-
 	cherryproxy.main(FilteringProxy)
-	# proxy = FilteringProxy(address='localhost', port=8000,
-	#                        server_name='grenzubergang-Proxy',
-	#                        debug=True, log_level=0, options=None,
-	#                        parent_proxy=None)
-
-	# try:
-	# 	proxy.start()
-	# except KeyboardInterrupt:
-	# 	proxy.stop()
