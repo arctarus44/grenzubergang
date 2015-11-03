@@ -31,6 +31,14 @@ def decode_baseX(string):
 		pass
 	# raise TypeError("This is not base64/32/16 encoded string")
 
+
+def decode_string(string):
+	""" Test if a string contains the keyword 'SSH' """
+	if 'ssh' in string or 'SSH' in string:
+		return True
+	return False
+
+
 def extract_payload(html):
 	"""Extract a payload from an html page."""
 
@@ -125,6 +133,8 @@ def filter_request_ssh(data):
 			"PASS: not SSH"
 			return False
 	except TypeError:
+		if decode_string(data):		
+			return True	
 		print "WRONG TYPE TO CHECK SSH"
 		return False
 
@@ -139,7 +149,7 @@ class FilteringProxy(cherryproxy.CherryProxy):
 
 	def filter_request_headers(self):
 		headers = self.req.headers
-		print("|" + self.__mro__ )
+		# print("|" + self.__mro__ )
 		# print(self.resp.httpconn)print(dir(self.resp.httpconn))
 		for f in self.__filter_header:
 			if f(self):
@@ -169,6 +179,7 @@ class FilteringProxy(cherryproxy.CherryProxy):
 			print "------- BEGIN DATA -------"
 			#data = self.req.data
 			length = int(self.req.length)
+			#data = urlparse.parse_qs(self.rfile.read(length).decode('utf-8'))
 			data = urlparse.parse_qs(self.req.data)
 			print data
 			print "------- END DATA -------" 
