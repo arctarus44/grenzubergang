@@ -4,6 +4,8 @@ import cherryproxy
 import base64
 from BeautifulSoup import BeautifulSoup
 import threading as thread
+import logging
+from ast import literal_eval
 
 INLINE = ["span", "b", "big", "i", "small", "tt", "abbr", "acronym", "cite",
           "code", "dfn", "em", "kbd", "strong", "samp", "var", "a",
@@ -123,17 +125,19 @@ def filter_header_random(headers):
 
 # Request
 def filter_request_ssh(proxy):
-
+	logging.debug("Searching a string ssh...")
 	def has_ssh(data):
 		""" Search the string "SSH" in the data, then return True or False."""
 		try:
 			if 'SSH' in decode_baseX(data):
-				print "SSH READ"
 				return True
 			else:
-				"PASS: not SSH"
 				return False
 		except TypeError:
+			logging.debug("%s is not a baseX string.")
+			return False
+		except Exception as e:
+			logging.error(e)
 			return False
 
 	def has_ssh_list(data, reverse=False):
@@ -142,27 +146,44 @@ def filter_request_ssh(proxy):
 		keys.sort(reverse=reverse)
 		payload = ""
 		for k in keys:
-			paylaod += self.req.data[k]
+			paylaod += proxy.req.data[k]
 
-		payload = decode_baseX(payload)
 		return has_ssh(payload)
-
 
 	if "GET" in proxy.req.method:
-		payload = self.req.url[1:]
-		payload = decode_baseX(payload)
-		return has_ssh(payload)
+		payload = proxy.req.url[1:]
+		logging.debug("Payload = %s", payload)
+		if has_ssh(payload):
+			logging.debug("Blocking the request %s.", proxy.req.full_url)
+			return True
+		return False
 
 	elif "POST" in proxy.req.method:
-		keys = self.req.data.keys()
+		logging.debug("Data received : %s.", proxy.req.data)
+		try:
+			data = literal_eval(proxy.req.data)
+		except SyntaxError:
+			if has_ssh(proxy.req.data):
+				logging.debug("Blocking the request %s with the following payload %s.",
+				              proxy.req.full_url, proxy.req.data)
+				return True
+			return True
+		else:
+			keys = data.keys()
+
 		if len(keys) == 1:
-			payload = decode_baseX(payload)
-			return has_ssh(payload)
+			return has_ssh(data[keys[0]])
 		else: # More than 1 key. We must sort the key
-			if has_ssh_list(self.req.data) == True:
+			if has_ssh_list(data):
+				logging.debug("Blocking the request %s with the following payload %s.",
+				              proxy.req.full_url, proxy.req.data)
 				return True
 			else: # Let's try the reverse sort
-				return has_ssh_list(self.req.data, reverse=True)
+				if has_ssh_list(data, reverse=True):
+					logging.debug("Blocking the request %s with the following reverse payload %s.",
+				              proxy.req.full_url, proxy.req.data)
+					return True
+				return False
 
 
 ################################## The Proxy ###################################
@@ -183,7 +204,7 @@ class FilteringProxy(cherryproxy.CherryProxy):
 
 	def filter_request(self):
 		logging.debug("Filtering the request.")
-		for f in self.__filter_header:
+		for f in self.__filter_request:
 			if f(self):
 				self.set_response_forbidden(reason="I don't want to.")
 				break
