@@ -129,6 +129,20 @@ def filter_header_user_agent(proxy):
 # client[full_url] = (time, data)
 cache = {}
 
+"""
+TO FINISH
+Permet de decoder le contenu et de verifier avec le content-type. On decode les data et on vérifie si le content-type est OK. Dans le cas où ça ne correspond pas on bloque la requete
+"""
+def response_content_type(proxy):
+	for header in proxy.resp.headers:
+		if 'content-type' in header:
+			url = proxy.req.url.split('.')
+			length = len(url)
+			#print url[length-1]
+			#print header
+			if url[length-1] in header:
+				print("------ OOKKKKK ------")
+
 def response_data_cache(proxy):
 	if not "GET" in proxy.req.method:
 		logging.debug("It's not a get")
@@ -228,7 +242,6 @@ def filter_request_ssh(proxy):
 			return False
 		except ValueError as e:
 			logging.error(e)
-			logging.debug("AZERTYUIOPAZERTYUIO")
 			if has_ssh(proxy.req.data): # it's a string
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
@@ -236,7 +249,6 @@ def filter_request_ssh(proxy):
 			return False
 
 		except Exception as e:
-			logging.debug("AZERTYUIOPAZERTYUIO")
 			logging.exception(e)
 			return False
 
@@ -266,15 +278,15 @@ def info(proxy):
 class FilteringProxy(cherryproxy.CherryProxy):
 
 	__filter_header = [filter_header_user_agent]
-	__filter_response = [response_data_cache]
+	__filter_response = [response_data_cache, response_content_type]
 	__filter_request = [request_cache, filter_request_ssh]
 
-	# def filter_request_headers(self):
-	# 	logging.debug("Filtering the headers.")
-	# 	for f in self.__filter_header:
-	# 		if f(self):
-	# 			self.set_response_forbidden(reason="I don't want to.")
-	# 			break
+	def filter_request_headers(self):
+		logging.debug("Filtering the headers.")
+		for f in self.__filter_header:
+			if f(self):
+				self.set_response_forbidden(reason="I don't want to.")
+				break
 
 	def filter_request(self):
 		logging.debug("Filtering the request.")
@@ -295,7 +307,7 @@ class FilteringProxy(cherryproxy.CherryProxy):
 
 if __name__ == "__main__":
 
-	logging.basicConfig(format='%(levelname)8s:%(asctime)s:%(funcName)20s():%(message)s',
-	                    filename='proxy.log', level=logging.DEBUG)
+	#logging.basicConfig(format='%(levelname)8s:%(asctime)s:%(funcName)20s():%(message)s',
+	#                   filename='proxy.log', level=logging.DEBUG)
 
 	cherryproxy.main(FilteringProxy)
