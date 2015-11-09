@@ -11,11 +11,18 @@ import base64
 from BeautifulSoup import BeautifulSoup
 import threading as thread
 import logging
+import json
 from ast import literal_eval
+import time
+from math import floor
+
 
 INLINE = ["span", "b", "big", "i", "small", "tt", "abbr", "acronym", "cite",
           "code", "dfn", "em", "kbd", "strong", "samp", "var", "a",
           "img", "map", "object", "q", "script", "sub", "sup", "label"]
+
+
+CACHE_DURATION = 5
 
 
 #################################### Utils #####################################
@@ -118,16 +125,28 @@ def filter_header_user_agent(proxy):
 				return True
 	return False
 
-def filter_header_random(headers):
-	"""For testing purpoise"""
-	import random
-	logging.error("We should not use it")
-	if random.randint(0, 100) < 20:
-		logging.debug("I don't like you !")
-		return True
+#store the result of a request
+# client[full_url] = (time, data)
+client {}
+
+def response_data_cache(proxy):
+	crt_time = time.time()
+	cache_policy = CACHE_DURATION + crt_time
+	try:
+		cache_policy = proxy.req.headers["cache-control"]
+	except KeyError:
+		logging.debug("No cache policy detected, so we cache the response")
 	else:
-		logging.debug("I like you <3")
-		return False
+		if cache_policy in ["max-age=0", "no-store", "no-cache"]:
+			return False
+		else:
+			cache_policy = int(cache_policy.replace("max-age=", "")) + crt_time
+
+	# if the cache is too old, we put store a fresh data.
+	if floor(client[proxy.req.full_url][0]) - floor(crt_time) > CACHE_DURATION:
+		client[proxy.req.full_url] = (cache_policy, proxy.req.data)
+
+
 
 # Request
 def filter_request_ssh(proxy):
@@ -173,7 +192,8 @@ def filter_request_ssh(proxy):
 				return True
 			return False
 		except ValueError as e:
-			logging.exception(e)
+			logging.error(e)
+			logging.debug("AZERTYUIOPAZERTYUIO")
 			if has_ssh(proxy.req.data): # it's a string
 				logging.debug("Blocking the request %s with the following payload %s.",
 				              proxy.req.full_url, proxy.req.data)
@@ -181,6 +201,7 @@ def filter_request_ssh(proxy):
 			return False
 
 		except Exception as e:
+			logging.debug("AZERTYUIOPAZERTYUIO")
 			logging.exception(e)
 			return False
 
@@ -203,8 +224,6 @@ def filter_request_ssh(proxy):
 					return False
 
 
-################################## The Proxy ###################################
-
 class FilteringProxy(cherryproxy.CherryProxy):
 
 	__filter_header = [filter_header_user_agent]
@@ -224,7 +243,15 @@ class FilteringProxy(cherryproxy.CherryProxy):
 			if f(self):
 				self.set_response_forbidden(status=403, reason="I don't want to.")
 				break
+		logging.debug("Forwarding the request.")
 
+	def filter_response(self):
+		logging.debug("New reponse received")
+		for f in self.__filter_response:
+			if f(self):
+				self.set_response_forbidden(status=403, reason="I don't want to.")
+				break
+		logging.debug("Forwarding the request.")
 
 
 if __name__ == "__main__":
