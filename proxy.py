@@ -11,7 +11,6 @@ import base64
 from BeautifulSoup import BeautifulSoup
 import threading as thread
 import logging
-import json
 from ast import literal_eval
 import time
 from math import floor
@@ -53,28 +52,8 @@ def decode_string(string):
 		return True
 	return False
 
-
-# def extract_payload(html):
-# 	"""Extract a payload from an html page."""
-
-# 	def inline_gen(html):
-# 		"""Extract from every inline element the content."""
-# 		parser = BeautifulSoup(html, 'html.parser')
-# 		for element in INLINE:
-# 			elements = parser.findAll(element)
-# 			inline = ""
-# 			for tag in elements:
-# 				inline += tag.next
-# 			yield inline
-
-# 	for payload in inline_gen(html):
-# 		if decode_baseX(payload) != None:
-# 			return payload
-# 	return None
-
-
-
 def extract_baseX(string, base=64):
+	"""Try to decode the string as a base64/32 string. And return the result."""
 	# todo base16
 	nope64 = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07',
 	          '\x08', '\t', '\n', '\x0b', '\x0c', '\r', '\x0e', '\x0f', '\x10',
@@ -129,21 +108,22 @@ def filter_header_user_agent(proxy):
 # client[full_url] = (time, data)
 cache = {}
 
-"""
-TO FINISH
-Permet de decoder le contenu et de verifier avec le content-type. On decode les data et on vérifie si le content-type est OK. Dans le cas où ça ne correspond pas on bloque la requete
-"""
 def response_content_type(proxy):
+	"""Check if the content type match with the data. If not block
+	the response."""
+	# todo: read the content and check if the content match with the content.
+	# for example, if content type is application/zip, we try to extract the zip
+	# file, and if it failed, block the response. We planned to do the same
+	# thing with images.
 	for header in proxy.resp.headers:
 		if 'content-type' in header:
 			url = proxy.req.url.split('.')
 			length = len(url)
-			#print url[length-1]
-			#print header
 			if url[length-1] in header:
-				print("------ OOKKKKK ------")
+				logging.info("The content type match.")
 
 def response_data_cache(proxy):
+	"""Cache the response."""
 	if not "GET" in proxy.req.method:
 		logging.debug("It's not a get")
 		return False
@@ -166,13 +146,15 @@ def response_data_cache(proxy):
 	try:
 		if floor(cache[proxy.req.full_url][0]) - floor(crt_time) > CACHE_DURATION:
 			logging.info("Cached response for a GET request on %s until %s",
-						 proxy.req.full_url, cache_policy)
+			             proxy.req.full_url, cache_policy)
 			cache[proxy.req.full_url] = (cache_policy, proxy.req.data)
 	except KeyError:
 		cache[proxy.req.full_url] = (cache_policy, proxy.req.data)
 	return False
 
 def request_cache(proxy):
+	"""If a cache response for the current url is store, send it to the
+	client."""
 	if not "GET" in proxy.req.method:
 		logging.debug("It's not a get")
 		return False
@@ -261,12 +243,12 @@ def filter_request_ssh(proxy):
 			else: # More than 1 key. We must sort the key
 				if has_ssh_list(data):
 					logging.debug("Blocking the request %s with the following payload %s.",
-								  proxy.req.full_url, proxy.req.data)
+					              proxy.req.full_url, proxy.req.data)
 					return True
 				else: # Let's try the reverse sort
 					if has_ssh_list(data, reverse=True):
 						logging.debug("Blocking the request %s with the following reverse payload %s.",
-								  proxy.req.full_url, proxy.req.data)
+						              proxy.req.full_url, proxy.req.data)
 						return True
 					return False
 
