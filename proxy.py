@@ -125,11 +125,15 @@ def filter_header_user_agent(proxy):
 				return True
 	return False
 
-#store the result of a request
+#store the result of a GET request
 # client[full_url] = (time, data)
-client {}
+cache = {}
 
 def response_data_cache(proxy):
+	if not "GET" in proxy.req.method:
+		logging.debug("It's not a get")
+		return False
+
 	crt_time = time.time()
 	cache_policy = CACHE_DURATION + crt_time
 	try:
@@ -138,13 +142,44 @@ def response_data_cache(proxy):
 		logging.debug("No cache policy detected, so we cache the response")
 	else:
 		if cache_policy in ["max-age=0", "no-store", "no-cache"]:
+			logging.debug("The cache policy say we cannot cache the response :(.")
 			return False
 		else:
 			cache_policy = int(cache_policy.replace("max-age=", "")) + crt_time
+			logging.debug("We will cached this data for until %s", cache_policy)
 
 	# if the cache is too old, we put store a fresh data.
-	if floor(client[proxy.req.full_url][0]) - floor(crt_time) > CACHE_DURATION:
-		client[proxy.req.full_url] = (cache_policy, proxy.req.data)
+	try:
+		if floor(cache[proxy.req.full_url][0]) - floor(crt_time) > CACHE_DURATION:
+			logging.info("Cached response for a GET request on %s until %s",
+						 proxy.req.full_url, cache_policy)
+			cache[proxy.req.full_url] = (cache_policy, proxy.req.data)
+	except KeyError:
+		cache[proxy.req.full_url] = (cache_policy, proxy.req.data)
+	return False
+
+def request_cache(proxy):
+	if not "GET" in proxy.req.method:
+		logging.debug("It's not a get")
+		return False
+
+	logging.debug("Let's try to find something interresting in the cache for %s"
+	              , proxy.req.full_url)
+	crt_time = time.time()
+
+	try:
+		cache_duration, data = cache[proxy.req.full_url]
+	except KeyError:
+		logging.debug("Nothing stored for %s", proxy.req.full_url)
+		return False
+	else:
+		logging.debug("Something stored for %s", proxy.req.full_url)
+		if floor(cache[proxy.req.full_url][0]) - floor(crt_time) < CACHE_DURATION:
+			logging.info("@@@ fresh data to send")
+			proxy.set_response(status=proxy.resp.status, data=data)
+		else:
+			logging.info("&&& fresh data to send")
+			return False
 
 
 
@@ -223,12 +258,16 @@ def filter_request_ssh(proxy):
 						return True
 					return False
 
+def info(proxy):
+	print dir(proxy.resp)
+
+
 
 class FilteringProxy(cherryproxy.CherryProxy):
 
 	__filter_header = [filter_header_user_agent]
-	__filter_response = []
-	__filter_request = [filter_request_ssh]
+	__filter_response = [response_data_cache]
+	__filter_request = [request_cache, filter_request_ssh]
 
 	# def filter_request_headers(self):
 	# 	logging.debug("Filtering the headers.")
